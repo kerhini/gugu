@@ -9,7 +9,6 @@ import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
-import org.bukkit.Particle;
 import org.bukkit.Sound;
 import org.bukkit.SoundCategory;
 import org.bukkit.entity.BlockDisplay;
@@ -17,7 +16,6 @@ import org.bukkit.entity.Boat;
 import org.bukkit.entity.Display;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.EntityType;
-import org.bukkit.entity.Marker;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.ShapelessRecipe;
@@ -38,7 +36,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Управление лодками-проигрывателями:
- * - 3D-модель музыкального блока ЖЁСТКО И СТАТИЧНО зафиксирована в задней части лодки (как сундук).
+ * - 3D-модель музыкального блока надежно закреплена как пассажир лодки и движется вместе с ней.
  * - Музыка играет НЕПРЕРЫВНО и ПОСТОЯННО от самой лодки.
  */
 public class JukeboxBoatManager {
@@ -51,7 +49,7 @@ public class JukeboxBoatManager {
     // UUID лодки -> играющий сейчас ванильный звук
     private final Map<UUID, Sound> activeVanillaSounds = new ConcurrentHashMap<>();
 
-    // UUID лодки -> задача анимации нот
+    // UUID лодки -> задача анимации
     private final Map<UUID, BukkitTask> effectTasks = new ConcurrentHashMap<>();
 
     // UUID лодки -> Mixer audio player
@@ -62,7 +60,7 @@ public class JukeboxBoatManager {
     }
 
     // =====================================================================
-    // Маркировка лодки и 3D-модель Jukebox (Статичная, как сундук)
+    // Маркировка лодки и 3D-модель Jukebox
     // =====================================================================
 
     public void markAsJukeboxBoat(Boat boat) {
@@ -71,7 +69,7 @@ public class JukeboxBoatManager {
         boat.customName(Component.text("♪ Лодка-проигрыватель ♪", NamedTextColor.GOLD));
         boat.setCustomNameVisible(false);
 
-        setupStaticSeating(boat, null);
+        ensureJukeboxDisplay(boat);
     }
 
     public boolean isJukeboxBoat(Entity entity) {
@@ -90,9 +88,9 @@ public class JukeboxBoatManager {
     }
 
     /**
-     * Создает или находит BlockDisplay музыкального блока.
+     * Создает или находит BlockDisplay музыкального блока, надежно закрепленный на лодке.
      */
-    public BlockDisplay findOrCreateDisplay(Boat boat) {
+    public BlockDisplay ensureJukeboxDisplay(Boat boat) {
         for (Entity passenger : boat.getPassengers()) {
             if (passenger instanceof BlockDisplay bd) {
                 if (bd.getBlock().getMaterial() == Material.JUKEBOX) {
@@ -108,59 +106,37 @@ public class JukeboxBoatManager {
         display.setInterpolationDuration(0);
         display.setTeleportDuration(0);
 
-        // Масштаб и позиция в задней части лодки (как у сундука)
+        // Позиционирование на корме лодки
         float scale = 0.58f;
         float offset = -scale / 2.0f;
         Transformation transform = new Transformation(
-                new Vector3f(offset, 0.32f, offset),
+                new Vector3f(offset, 0.12f, offset - 0.28f),
                 new AxisAngle4f(0, 0, 0, 1),
                 new Vector3f(scale, scale, scale),
                 new AxisAngle4f(0, 0, 0, 1)
         );
         display.setTransformation(transform);
+
+        boat.addPassenger(display);
         return display;
     }
 
     /**
-     * Устанавливает жесткую двухместную структуру лодки:
-     * Пассажир 0 = Водитель (Игрок или невидимый Marker-заглушка)
-     * Пассажир 1 = BlockDisplay (Jukebox) — ВСЕГДА на 2-м месте, поэтому статичен и не дергается!
+     * Посадка игрока в лодку: игрок садится на место водителя (слот 0),
+     * а музыкальный блок остается закрепленным сзади (слот 1).
      */
-    public void setupStaticSeating(Boat boat, Player driver) {
-        BlockDisplay display = findOrCreateDisplay(boat);
+    public void enterBoat(Boat boat, Player player) {
+        BlockDisplay display = ensureJukeboxDisplay(boat);
 
-        // Очищаем текущих пассажиров
-        List<Entity> oldPassengers = new ArrayList<>(boat.getPassengers());
-        for (Entity p : oldPassengers) {
-            boat.removePassenger(p);
-            if (p instanceof Marker && p != driver) {
-                p.remove();
-            }
-        }
-
-        // Слот 0: Игрок за веслами или невидимый Marker
-        if (driver != null && driver.isOnline()) {
-            boat.addPassenger(driver);
-        } else {
-            Marker seatMarker = (Marker) boat.getWorld().spawnEntity(boat.getLocation(), EntityType.MARKER);
-            seatMarker.getPersistentDataContainer().set(plugin.getKeyIsJukebox(), PersistentDataType.BYTE, (byte) 1);
-            boat.addPassenger(seatMarker);
-        }
-
-        // Слот 1: Всегда BlockDisplay (Jukebox)
+        boat.removePassenger(display);
+        boat.addPassenger(player);
         boat.addPassenger(display);
     }
 
-    public void enterBoat(Boat boat, Player player) {
-        setupStaticSeating(boat, player);
-    }
-
     public void handlePlayerExited(Boat boat, Player player) {
-        // Когда игрок встает из лодки, восстанавливаем заглушку в слот 0,
-        // чтобы Jukebox оставался неподвижно в слоте 1 (сзади)
         plugin.getServer().getScheduler().runTask(plugin, () -> {
             if (boat.isValid() && !boat.isDead()) {
-                setupStaticSeating(boat, null);
+                ensureJukeboxDisplay(boat);
             }
         });
     }
@@ -390,7 +366,7 @@ public class JukeboxBoatManager {
                 Location loc = boat.getLocation();
                 plugin.getParticleEffect().spawnFloatingSymbol(loc);
             }
-        }.runTaskTimer(plugin, 5L, 16L); // Каждые 0.8 секунды вылетает светящийся логотип
+        }.runTaskTimer(plugin, 5L, 16L);
 
         effectTasks.put(boatId, task);
     }

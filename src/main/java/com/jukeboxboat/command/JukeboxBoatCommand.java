@@ -18,12 +18,13 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Команды для управления лодками-проигрывателями.
+ * Команды для управления лодками-проигрывателями с проверкой прав доступа.
  *
- * /jbboat give [игрок] [тип_дерева] — выдать предмет лодки с проигрывателем
- * /jbboat convert — конвертировать ближайшую лодку в проигрыватель
- * /jbboat info — информация о лодке, на которую смотрит игрок
- * /jbboat reload — перезагрузить конфигурацию
+ * jukeboxboat.admin — полный доступ
+ * jukeboxboat.command.give — выдача предметов
+ * jukeboxboat.command.convert — превращение лодок
+ * jukeboxboat.command.info — просмотр информации
+ * jukeboxboat.command.reload — перезагрузка конфига
  */
 public class JukeboxBoatCommand implements CommandExecutor, TabCompleter {
 
@@ -33,28 +34,39 @@ public class JukeboxBoatCommand implements CommandExecutor, TabCompleter {
         this.plugin = plugin;
     }
 
+    private boolean checkPerm(CommandSender sender, String permission) {
+        if (sender.hasPermission("jukeboxboat.admin") || sender.hasPermission(permission)) {
+            return true;
+        }
+        sender.sendMessage(Component.text("У вас нет прав для выполнения этой команды! (" + permission + ")", NamedTextColor.RED));
+        return false;
+    }
+
     @Override
     public boolean onCommand(@NotNull CommandSender sender, @NotNull Command command,
                              @NotNull String label, @NotNull String[] args) {
-        if (!sender.hasPermission("jukeboxboat.admin")) {
-            sender.sendMessage(Component.text("У вас нет разрешения на эту команду!", NamedTextColor.RED));
+        if (args.length == 0) {
+            sendHelp(sender);
             return true;
         }
 
-        if (args.length == 0) {
-            if (sender instanceof Player) {
-                return handleGive(sender, new String[]{"give"});
-            } else {
-                sendHelp(sender);
-                return true;
-            }
-        }
-
         return switch (args[0].toLowerCase()) {
-            case "give" -> handleGive(sender, args);
-            case "convert" -> handleConvert(sender);
-            case "info" -> handleInfo(sender);
-            case "reload" -> handleReload(sender);
+            case "give" -> {
+                if (!checkPerm(sender, "jukeboxboat.command.give")) yield true;
+                yield handleGive(sender, args);
+            }
+            case "convert" -> {
+                if (!checkPerm(sender, "jukeboxboat.command.convert")) yield true;
+                yield handleConvert(sender);
+            }
+            case "info" -> {
+                if (!checkPerm(sender, "jukeboxboat.command.info")) yield true;
+                yield handleInfo(sender);
+            }
+            case "reload" -> {
+                if (!checkPerm(sender, "jukeboxboat.command.reload")) yield true;
+                yield handleReload(sender);
+            }
             default -> {
                 sendHelp(sender);
                 yield true;
@@ -234,14 +246,22 @@ public class JukeboxBoatCommand implements CommandExecutor, TabCompleter {
 
     private void sendHelp(CommandSender sender) {
         sender.sendMessage(Component.text("═══ JukeboxBoat Команды ═══", NamedTextColor.GOLD));
-        sender.sendMessage(Component.text("/jbboat give [игрок] [дерево]", NamedTextColor.YELLOW)
-                .append(Component.text(" — выдать лодку-проигрыватель", NamedTextColor.GRAY)));
-        sender.sendMessage(Component.text("/jbboat convert", NamedTextColor.YELLOW)
-                .append(Component.text(" — превратить ближайшую лодку в проигрыватель", NamedTextColor.GRAY)));
-        sender.sendMessage(Component.text("/jbboat info", NamedTextColor.YELLOW)
-                .append(Component.text(" — информация о лодке под прицелом", NamedTextColor.GRAY)));
-        sender.sendMessage(Component.text("/jbboat reload", NamedTextColor.YELLOW)
-                .append(Component.text(" — перезагрузить конфигурацию", NamedTextColor.GRAY)));
+        if (sender.hasPermission("jukeboxboat.admin") || sender.hasPermission("jukeboxboat.command.give")) {
+            sender.sendMessage(Component.text("/jbboat give [игрок] [дерево]", NamedTextColor.YELLOW)
+                    .append(Component.text(" — выдать лодку-проигрыватель", NamedTextColor.GRAY)));
+        }
+        if (sender.hasPermission("jukeboxboat.admin") || sender.hasPermission("jukeboxboat.command.convert")) {
+            sender.sendMessage(Component.text("/jbboat convert", NamedTextColor.YELLOW)
+                    .append(Component.text(" — превратить ближайшую лодку в проигрыватель", NamedTextColor.GRAY)));
+        }
+        if (sender.hasPermission("jukeboxboat.admin") || sender.hasPermission("jukeboxboat.command.info")) {
+            sender.sendMessage(Component.text("/jbboat info", NamedTextColor.YELLOW)
+                    .append(Component.text(" — информация о лодке под прицелом", NamedTextColor.GRAY)));
+        }
+        if (sender.hasPermission("jukeboxboat.admin") || sender.hasPermission("jukeboxboat.command.reload")) {
+            sender.sendMessage(Component.text("/jbboat reload", NamedTextColor.YELLOW)
+                    .append(Component.text(" — перезагрузить конфигурацию", NamedTextColor.GRAY)));
+        }
     }
 
     // =====================================================================
@@ -250,35 +270,28 @@ public class JukeboxBoatCommand implements CommandExecutor, TabCompleter {
 
     @Override
     public List<String> onTabComplete(@NotNull CommandSender sender, @NotNull Command command,
-                                      @NotNull String alias, @NotNull String[] args) {
-        if (!sender.hasPermission("jukeboxboat.admin")) return List.of();
-
+                                       @NotNull String alias, @NotNull String[] args) {
         if (args.length == 1) {
-            return List.of("give", "convert", "info", "reload").stream()
-                    .filter(s -> s.startsWith(args[0].toLowerCase()))
-                    .toList();
+            List<String> sub = new ArrayList<>();
+            if (sender.hasPermission("jukeboxboat.admin") || sender.hasPermission("jukeboxboat.command.give")) sub.add("give");
+            if (sender.hasPermission("jukeboxboat.admin") || sender.hasPermission("jukeboxboat.command.convert")) sub.add("convert");
+            if (sender.hasPermission("jukeboxboat.admin") || sender.hasPermission("jukeboxboat.command.info")) sub.add("info");
+            if (sender.hasPermission("jukeboxboat.admin") || sender.hasPermission("jukeboxboat.command.reload")) sub.add("reload");
+            return sub.stream().filter(s -> s.startsWith(args[0].toLowerCase())).toList();
         }
 
-        if (args.length == 2 && args[0].equalsIgnoreCase("give")) {
+        if (args.length == 2 && args[0].equalsIgnoreCase("give")
+                && (sender.hasPermission("jukeboxboat.admin") || sender.hasPermission("jukeboxboat.command.give"))) {
             List<String> suggestions = new ArrayList<>();
             for (Player p : plugin.getServer().getOnlinePlayers()) {
                 suggestions.add(p.getName());
             }
-            suggestions.add("oak");
-            suggestions.add("spruce");
-            suggestions.add("birch");
-            suggestions.add("jungle");
-            suggestions.add("acacia");
-            suggestions.add("dark_oak");
-            suggestions.add("mangrove");
-            suggestions.add("cherry");
-            suggestions.add("bamboo");
-            return suggestions.stream()
-                    .filter(s -> s.toLowerCase().startsWith(args[1].toLowerCase()))
-                    .toList();
+            suggestions.addAll(List.of("oak", "spruce", "birch", "jungle", "acacia", "dark_oak", "mangrove", "cherry", "bamboo"));
+            return suggestions.stream().filter(s -> s.toLowerCase().startsWith(args[1].toLowerCase())).toList();
         }
 
-        if (args.length == 3 && args[0].equalsIgnoreCase("give")) {
+        if (args.length == 3 && args[0].equalsIgnoreCase("give")
+                && (sender.hasPermission("jukeboxboat.admin") || sender.hasPermission("jukeboxboat.command.give"))) {
             return List.of("oak", "spruce", "birch", "jungle", "acacia", "dark_oak", "mangrove", "cherry", "bamboo").stream()
                     .filter(s -> s.startsWith(args[2].toLowerCase()))
                     .toList();

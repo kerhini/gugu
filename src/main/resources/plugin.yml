@@ -2,23 +2,49 @@ name: JukeboxBoat
 version: '${version}'
 main: com.jukeboxboat.JukeboxBoatPlugin
 api-version: '1.21'
-description: Jukebox inside Boat plugin for Paper 1.21.1 with Mixer Reloaded compatibility.
+description: Jukebox inside Boat plugin for Paper 1.21.11 with Mixer Reloaded compatibility.
 authors: [Antigravity]
 softdepend: [Mixer, MixerReloaded]
 
 commands:
   jbboat:
-    description: Control and configure Jukebox boats
+    description: Управление лодками-проигрывателями
     usage: /jbboat <give|convert|info|reload>
-    permission: jukeboxboat.admin
+    permission: jukeboxboat.use
+    permission-message: "§cУ вас нет прав для использования этой команды!"
 
 permissions:
   jukeboxboat.admin:
-    description: Full access to JukeboxBoat commands
+    description: Полный доступ ко всем функциям и командам плагина
+    default: op
+    children:
+      jukeboxboat.command.give: true
+      jukeboxboat.command.convert: true
+      jukeboxboat.command.info: true
+      jukeboxboat.command.reload: true
+      jukeboxboat.use: true
+      jukeboxboat.craft: true
+
+  jukeboxboat.command.give:
+    description: Право на команду /jbboat give
+    default: op
+
+  jukeboxboat.command.convert:
+    description: Право на команду /jbboat convert
+    default: op
+
+  jukeboxboat.command.info:
+    description: Право на команду /jbboat info
     default: true
+
+  jukeboxboat.command.reload:
+    description: Право на команду /jbboat reload
+    default: op
+
   jukeboxboat.use:
-    description: Allows using jukebox boats
+    description: Право на использование лодки-проигрывателя (вставка и извлечение пластинок)
     default: true
+
   jukeboxboat.craft:
-    description: Allows crafting jukebox boats
+    description: Право на крафт лодки-проигрывателя
     default: true
