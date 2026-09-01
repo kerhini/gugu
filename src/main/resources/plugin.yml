@@ -1,0 +1,24 @@
+name: JukeboxBoat
+version: '${version}'
+main: com.jukeboxboat.JukeboxBoatPlugin
+api-version: '1.21'
+description: Jukebox inside Boat plugin for Paper 1.21.1 with Mixer Reloaded compatibility.
+authors: [Antigravity]
+softdepend: [Mixer, MixerReloaded]
+
+commands:
+  jbboat:
+    description: Control and configure Jukebox boats
+    usage: /jbboat <give|convert|info|reload>
+    permission: jukeboxboat.admin
+
+permissions:
+  jukeboxboat.admin:
+    description: Full access to JukeboxBoat commands
+    default: true
+  jukeboxboat.use:
+    description: Allows using jukebox boats
+    default: true
+  jukeboxboat.craft:
+    description: Allows crafting jukebox boats
+    default: true
